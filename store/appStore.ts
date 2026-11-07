@@ -53,33 +53,6 @@ interface AppStore {
   setProgress: (val: number) => void;
 }
 
-export const useAppStore = create<AppStore>((set) => ({
-  pendingFiles: [],
-  addFiles: (files) =>
-    set((s) => ({ pendingFiles: [...s.pendingFiles, ...files] })),
-  removeFile: (id) =>
-    set((s) => ({ pendingFiles: s.pendingFiles.filter((f) => f.id !== id) })),
-  clearPending: () => set({ pendingFiles: [] }),
-
-  results: MOCK_RESULTS,
-  addResult: (result) =>
-    set((s) => ({ results: [result, ...s.results] })),
-  updateResult: (id, partial) =>
-    set((s) => ({
-      results: s.results.map((r) => (r.id === id ? { ...r, ...partial } : r)),
-    })),
-  deleteResult: (id) =>
-    set((s) => ({ results: s.results.filter((r) => r.id !== id) })),
-
-  activeResultId: null,
-  setActiveResult: (id) => set({ activeResultId: id }),
-
-  isGenerating: false,
-  generationProgress: 0,
-  setGenerating: (val) => set({ isGenerating: val }),
-  setProgress: (val) => set({ generationProgress: val }),
-}));
-
 // ── Mock seed data ──────────────────────────────────────────
 const MOCK_RESULTS: MetadataResult[] = [
   {
@@ -163,3 +136,30 @@ const MOCK_RESULTS: MetadataResult[] = [
     status: 'done',
   },
 ];
+
+export const useAppStore = create<AppStore>((set) => ({
+  pendingFiles: [],
+  addFiles: (files) =>
+    set((s) => ({ pendingFiles: [...s.pendingFiles, ...files] })),
+  removeFile: (id) =>
+    set((s) => ({ pendingFiles: s.pendingFiles.filter((f) => f.id !== id) })),
+  clearPending: () => set({ pendingFiles: [] }),
+
+  results: MOCK_RESULTS,
+  addResult: (result) =>
+    set((s) => ({ results: [result, ...s.results] })),
+  updateResult: (id, partial) =>
+    set((s) => ({
+      results: s.results.map((r) => (r.id === id ? { ...r, ...partial } : r)),
+    })),
+  deleteResult: (id) =>
+    set((s) => ({ results: s.results.filter((r) => r.id !== id) })),
+
+  activeResultId: null,
+  setActiveResult: (id) => set({ activeResultId: id }),
+
+  isGenerating: false,
+  generationProgress: 0,
+  setGenerating: (val) => set({ isGenerating: val }),
+  setProgress: (val) => set({ generationProgress: val }),
+}));

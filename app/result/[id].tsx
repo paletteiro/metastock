@@ -13,8 +13,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { Colors, Radius, Typography } from '../../constants/theme';
 import { useAppStore } from '../../store/appStore';
-import { ScorePill } from '../../components/ScorePill';
-import { MediaTypeBadge } from '../../components/MediaTypeBadge';
+import { ScorePill, MediaTypeBadge } from '../../components/MediaTypeBadge';
 
 const PLATFORMS = ['Shutterstock', 'Adobe Stock', 'Getty Images', 'Alamy', 'Dreamstime', 'Pond5'];
 

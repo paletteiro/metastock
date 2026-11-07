@@ -16,8 +16,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
 import { Colors, Radius, Typography } from '../../constants/theme';
 import { useAppStore, MediaFile, MetadataResult } from '../../store/appStore';
-import { MediaTypeBadge } from '../../components/MediaTypeBadge';
-import { FileThumb } from '../../components/FileThumb';
+import { MediaTypeBadge, FileThumb } from '../../components/MediaTypeBadge';
 
 function uuid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);

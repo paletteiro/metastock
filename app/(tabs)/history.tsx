@@ -11,9 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Colors, Radius, Typography } from '../../constants/theme';
 import { useAppStore, MetadataResult } from '../../store/appStore';
-import { MediaTypeBadge } from '../../components/MediaTypeBadge';
-import { ScorePill } from '../../components/ScorePill';
-import { StatusBadge } from '../../components/StatusBadge';
+import { MediaTypeBadge, ScorePill, StatusBadge } from '../../components/MediaTypeBadge';
 
 type Filter = 'all' | 'photo' | 'video' | 'vector' | 'png';
 

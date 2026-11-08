@@ -41,6 +41,7 @@ interface AppStore {
   addResult: (result: MetadataResult) => void;
   updateResult: (id: string, partial: Partial<MetadataResult>) => void;
   deleteResult: (id: string) => void;
+  clearResults: () => void;
 
   // Active result for detail view
   activeResultId: string | null;
@@ -154,6 +155,7 @@ export const useAppStore = create<AppStore>((set) => ({
     })),
   deleteResult: (id) =>
     set((s) => ({ results: s.results.filter((r) => r.id !== id) })),
+  clearResults: () => set({ results: [] }),
 
   activeResultId: null,
   setActiveResult: (id) => set({ activeResultId: id }),

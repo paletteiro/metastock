@@ -4,3 +4,14 @@
 
 expo-env.d.ts
 # @end expo-cli
+
+# Environment variables — never commit these
+.env
+.env.local
+.env.production
+
+# Dependencies
+node_modules/
+
+# Expo generated
+.expo/

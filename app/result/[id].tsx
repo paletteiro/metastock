@@ -7,13 +7,47 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
+import * as FileSystem from 'expo-file-system';
 import { Colors, Radius, Typography } from '../../constants/theme';
-import { useAppStore } from '../../store/appStore';
+import { useAppStore, MetadataResult } from '../../store/appStore';
 import { ScorePill, MediaTypeBadge } from '../../components/MediaTypeBadge';
+
+async function exportSingleCSV(r: MetadataResult) {
+  const headers = ['Filename', 'Title', 'Description', 'Category', 'Keywords', 'ModelRelease', 'PropertyRelease', 'Score', 'Platforms'];
+  const row = [
+    r.file.name,
+    `"${r.title.replace(/"/g, '""')}"`,
+    `"${r.description.replace(/"/g, '""')}"`,
+    `"${r.category.replace(/"/g, '""')}"`,
+    `"${r.keywords.join('; ')}"`,
+    r.modelRelease ? 'Yes' : 'No',
+    r.propertyRelease ? 'Yes' : 'No',
+    String(r.score),
+    `"${r.platforms.join('; ')}"`,
+  ].join(',');
+  const csv = [headers.join(','), row].join('\n');
+  const filename = r.file.name.replace(/\.[^.]+$/, '') + '-metadata.csv';
+  if (Platform.OS === 'web') {
+    const blob = new (window as any).Blob([csv], { type: 'text/csv' });
+    const url = (window as any).URL.createObjectURL(blob);
+    const a = (window as any).document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    (window as any).document.body.appendChild(a);
+    a.click();
+    (window as any).document.body.removeChild(a);
+    (window as any).URL.revokeObjectURL(url);
+  } else {
+    const path = (FileSystem.documentDirectory ?? '') + filename;
+    await FileSystem.writeAsStringAsync(path, csv, { encoding: FileSystem.EncodingType.UTF8 });
+    Alert.alert('Export saved', `File saved to:\n${path}`);
+  }
+}
 
 const PLATFORMS = ['Shutterstock', 'Adobe Stock', 'Getty Images', 'Alamy', 'Dreamstime', 'Pond5'];
 
@@ -266,7 +300,7 @@ export default function ResultScreen() {
           <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85}>
             <Text style={styles.saveBtnText}>Save changes</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.exportBtn} onPress={copyAll} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.exportBtn} onPress={() => exportSingleCSV(result)} activeOpacity={0.85}>
             <Text style={styles.exportBtnText}>Export CSV</Text>
           </TouchableOpacity>
         </View>

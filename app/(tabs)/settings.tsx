@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,79 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
+  Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as FileSystem from 'expo-file-system';
 import { Colors, Radius, Typography } from '../../constants/theme';
+import { useAppStore, MetadataResult } from '../../store/appStore';
+import { useAuthStore } from '../../store/authStore';
+import { useSettingsStore } from '../../store/settingsStore';
+import { supabase } from '../../lib/supabase';
+
+function generateCSV(rows: MetadataResult[]): string {
+  const headers = ['Filename', 'Title', 'Description', 'Category', 'Keywords', 'ModelRelease', 'PropertyRelease', 'Score', 'Platforms'];
+  const lines = rows.map((r) => [
+    r.file.name,
+    `"${r.title.replace(/"/g, '""')}"`,
+    `"${r.description.replace(/"/g, '""')}"`,
+    `"${r.category.replace(/"/g, '""')}"`,
+    `"${r.keywords.join('; ')}"`,
+    r.modelRelease ? 'Yes' : 'No',
+    r.propertyRelease ? 'Yes' : 'No',
+    String(r.score),
+    `"${r.platforms.join('; ')}"`,
+  ].join(','));
+  return [headers.join(','), ...lines].join('\n');
+}
+
+function generateJSON(rows: MetadataResult[]): string {
+  return JSON.stringify(rows.map((r) => ({
+    filename: r.file.name,
+    title: r.title,
+    description: r.description,
+    category: r.category,
+    keywords: r.keywords,
+    modelRelease: r.modelRelease,
+    propertyRelease: r.propertyRelease,
+    score: r.score,
+    platforms: r.platforms,
+  })), null, 2);
+}
+
+function generateXML(rows: MetadataResult[]): string {
+  const items = rows.map((r) => `  <file>
+    <filename>${r.file.name}</filename>
+    <title>${r.title}</title>
+    <description>${r.description}</description>
+    <category>${r.category}</category>
+    <keywords>${r.keywords.join('; ')}</keywords>
+    <modelRelease>${r.modelRelease}</modelRelease>
+    <propertyRelease>${r.propertyRelease}</propertyRelease>
+    <score>${r.score}</score>
+    <platforms>${r.platforms.join('; ')}</platforms>
+  </file>`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<files>\n${items}\n</files>`;
+}
+
+async function downloadFile(content: string, filename: string, mime: string) {
+  if (Platform.OS === 'web') {
+    const blob = new (window as any).Blob([content], { type: mime });
+    const url = (window as any).URL.createObjectURL(blob);
+    const a = (window as any).document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    (window as any).document.body.appendChild(a);
+    a.click();
+    (window as any).document.body.removeChild(a);
+    (window as any).URL.revokeObjectURL(url);
+  } else {
+    const path = (FileSystem.documentDirectory ?? '') + filename;
+    await FileSystem.writeAsStringAsync(path, content, { encoding: FileSystem.EncodingType.UTF8 });
+    Alert.alert('File saved', `Saved to:\n${path}`);
+  }
+}
 
 const PLATFORMS = ['Shutterstock', 'Adobe Stock', 'Getty Images', 'Alamy', 'Dreamstime', 'Pond5', 'Depositphotos'];
 
@@ -39,30 +109,66 @@ function RowSwitch({ label, sub, value, onChange }: { label: string; sub?: strin
   );
 }
 
-function RowLink({ label, sub, right }: { label: string; sub?: string; right?: string }) {
+function RowLink({ label, sub, right, onPress }: { label: string; sub?: string; right?: string; onPress?: () => void }) {
   return (
-    <View style={styles.row}>
+    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={onPress ? 0.7 : 1}>
       <View style={{ flex: 1 }}>
         <Text style={styles.rowLabel}>{label}</Text>
         {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
       </View>
       <Text style={styles.rowRight}>{right ?? '›'}</Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
 export default function SettingsScreen() {
-  const [selectedPlatforms, setSelectedPlatforms] = useState(['Shutterstock', 'Adobe Stock', 'Getty Images']);
-  const [autoKeywords, setAutoKeywords] = useState(true);
-  const [releaseDetect, setReleaseDetect] = useState(true);
-  const [colorPalette, setColorPalette] = useState(true);
-  const [exportFormat, setExportFormat] = useState<'csv' | 'json' | 'xml'>('csv');
-  const [keywordCount, setKeywordCount] = useState<'25' | '40' | '50'>('40');
+  const { results, clearResults } = useAppStore();
+  const { user } = useAuthStore();
+  const {
+    selectedPlatforms,
+    autoKeywords,
+    releaseDetect,
+    colorPalette,
+    exportFormat,
+    keywordCount,
+    togglePlatform,
+    setAutoKeywords,
+    setReleaseDetect,
+    setColorPalette,
+    setExportFormat,
+    setKeywordCount,
+  } = useSettingsStore();
 
-  const togglePlatform = (p: string) => {
-    setSelectedPlatforms((prev) =>
-      prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]
-    );
+  const handleDownloadAll = () => {
+    if (results.length === 0) {
+      Alert.alert('No data', 'There are no results to export.');
+      return;
+    }
+    if (exportFormat === 'csv') {
+      downloadFile(generateCSV(results), 'metastock-history.csv', 'text/csv');
+    } else if (exportFormat === 'json') {
+      downloadFile(generateJSON(results), 'metastock-history.json', 'application/json');
+    } else {
+      downloadFile(generateXML(results), 'metastock-history.xml', 'application/xml');
+    }
+  };
+
+  const handleClearHistory = () => {
+    Alert.alert('Clear all history', 'This will permanently delete all results. Cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear all', style: 'destructive', onPress: () => clearResults() },
+    ]);
+  };
+
+  const handleSignOut = () => {
+    Alert.alert('Sign out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: () => supabase.auth.signOut() },
+    ]);
+  };
+
+  const handleComingSoon = (feature: string) => {
+    Alert.alert(feature, 'This feature is coming soon.');
   };
 
   return (
@@ -73,11 +179,15 @@ export default function SettingsScreen() {
         {/* Profile */}
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>A</Text>
+            <Text style={styles.avatarText}>
+              {(user?.user_metadata?.full_name ?? user?.email ?? 'U')[0].toUpperCase()}
+            </Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.profileName}>Andi Microstocker</Text>
-            <Text style={styles.profileEmail}>andi@email.com</Text>
+            <Text style={styles.profileName}>
+              {user?.user_metadata?.full_name ?? 'User'}
+            </Text>
+            <Text style={styles.profileEmail}>{user?.email ?? ''}</Text>
           </View>
           <View style={styles.proBadge}>
             <Text style={styles.proBadgeText}>PRO</Text>
@@ -95,6 +205,7 @@ export default function SettingsScreen() {
                   key={p}
                   style={[styles.platformChip, active && styles.platformChipActive]}
                   onPress={() => togglePlatform(p)}
+
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.platformChipText, active && styles.platformChipTextActive]}>{p}</Text>
@@ -150,23 +261,28 @@ export default function SettingsScreen() {
             </View>
           </View>
           <View style={styles.rowDivider} />
-          <RowLink label="Download all history" sub="128 files · ~24 KB" right="↓" />
+          <RowLink
+            label="Download all history"
+            sub={`${results.length} file${results.length !== 1 ? 's' : ''} · ${exportFormat.toUpperCase()}`}
+            right="↓"
+            onPress={handleDownloadAll}
+          />
         </Section>
 
         {/* Account */}
         <Section title="Account">
-          <RowLink label="Manage subscription" sub="Pro — renews 1 Jan 2026" />
+          <RowLink label="Manage subscription" sub="Pro — renews 1 Jan 2026" onPress={() => handleComingSoon('Manage subscription')} />
           <View style={styles.rowDivider} />
-          <RowLink label="Usage this month" sub="42 of unlimited generates" />
+          <RowLink label="Usage this month" sub="42 of unlimited generates" onPress={() => handleComingSoon('Usage this month')} />
           <View style={styles.rowDivider} />
-          <RowLink label="API access" sub="Connect to your own backend" />
+          <RowLink label="API access" sub="Connect to your own backend" onPress={() => handleComingSoon('API access')} />
         </Section>
 
         {/* Danger */}
         <Section title="Data">
-          <RowLink label="Clear all history" sub="Cannot be undone" right="›" />
+          <RowLink label="Clear all history" sub="Cannot be undone" right="›" onPress={handleClearHistory} />
           <View style={styles.rowDivider} />
-          <TouchableOpacity style={styles.row}>
+          <TouchableOpacity style={styles.row} onPress={handleSignOut} activeOpacity={0.7}>
             <Text style={[styles.rowLabel, { color: Colors.red }]}>Sign out</Text>
           </TouchableOpacity>
         </Section>

@@ -6,12 +6,50 @@ import {
   FlatList,
   TouchableOpacity,
   TextInput,
+  Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import * as FileSystem from 'expo-file-system';
 import { Colors, Radius, Typography } from '../../constants/theme';
 import { useAppStore, MetadataResult } from '../../store/appStore';
 import { MediaTypeBadge, ScorePill, StatusBadge } from '../../components/MediaTypeBadge';
+
+function generateCSV(rows: MetadataResult[]): string {
+  const headers = ['Filename', 'Title', 'Description', 'Category', 'Keywords', 'ModelRelease', 'PropertyRelease', 'Score', 'Platforms'];
+  const lines = rows.map((r) => [
+    r.file.name,
+    `"${r.title.replace(/"/g, '""')}"`,
+    `"${r.description.replace(/"/g, '""')}"`,
+    `"${r.category.replace(/"/g, '""')}"`,
+    `"${r.keywords.join('; ')}"`,
+    r.modelRelease ? 'Yes' : 'No',
+    r.propertyRelease ? 'Yes' : 'No',
+    String(r.score),
+    `"${r.platforms.join('; ')}"`,
+  ].join(','));
+  return [headers.join(','), ...lines].join('\n');
+}
+
+async function downloadCSV(rows: MetadataResult[], filename: string) {
+  const csv = generateCSV(rows);
+  if (Platform.OS === 'web') {
+    const blob = new (window as any).Blob([csv], { type: 'text/csv' });
+    const url = (window as any).URL.createObjectURL(blob);
+    const a = (window as any).document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    (window as any).document.body.appendChild(a);
+    a.click();
+    (window as any).document.body.removeChild(a);
+    (window as any).URL.revokeObjectURL(url);
+  } else {
+    const path = (FileSystem.documentDirectory ?? '') + filename;
+    await FileSystem.writeAsStringAsync(path, csv, { encoding: FileSystem.EncodingType.UTF8 });
+    Alert.alert('Export saved', `File saved to:\n${path}`);
+  }
+}
 
 type Filter = 'all' | 'photo' | 'video' | 'vector' | 'png';
 
@@ -95,7 +133,11 @@ export default function HistoryScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>History</Text>
-        <TouchableOpacity style={styles.exportBtn} activeOpacity={0.8}>
+        <TouchableOpacity
+          style={styles.exportBtn}
+          activeOpacity={0.8}
+          onPress={() => downloadCSV(filtered, 'metastock-export.csv')}
+        >
           <Text style={styles.exportBtnText}>Export CSV</Text>
         </TouchableOpacity>
       </View>
